@@ -49,6 +49,11 @@ public class GameViewController: UIViewController {
             self.currentState = GameEndedState(winner: winner, gameViewController: self)
             return
         }
+        if self.gameboard.noMoreSteps(){
+            self.currentState = GameEndedState(winner: nil,gameViewController: self)
+            return
+        }
+        
         if let playerInputState = currentState as? PlayerInputState {
             self.currentState = PlayerInputState(player: playerInputState.player.next,
                                                  gameViewController: self,

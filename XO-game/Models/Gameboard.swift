@@ -38,6 +38,10 @@ public final class Gameboard {
         return positions[column][row] == player
     }
     
+    public func noMoreSteps()-> Bool{
+        return positions.flatMap { $0 }.allSatisfy { $0 != nil }
+    }
+    
     // MARK: - Private
     
     private func initialPositions() -> [[Player?]] {
