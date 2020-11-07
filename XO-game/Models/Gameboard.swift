@@ -38,6 +38,15 @@ public final class Gameboard {
         return positions[column][row] == player
     }
     
+    public func noMoreSteps()-> Bool{
+        return positions.flatMap { $0 }.allSatisfy { $0 != nil }
+    }
+    
+    public func contains(at position: GameboardPosition)-> Player?{
+        let (column, row) = (position.column, position.row)
+        return positions[column][row]
+    }
+    
     // MARK: - Private
     
     private func initialPositions() -> [[Player?]] {
