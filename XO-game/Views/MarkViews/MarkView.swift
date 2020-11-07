@@ -124,3 +124,16 @@ public class MarkView: UIView {
         // meant for subclasses to override
     }
 }
+
+class MarkViewBuilder{
+    public func build(player: Player) -> MarkView{
+        let markView: MarkView
+        switch player {
+        case .first:
+            markView = XView()
+        default:
+            markView = OView()
+        }
+        return markView
+    }
+}

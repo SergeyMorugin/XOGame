@@ -19,36 +19,105 @@ public protocol GameState {
 
 
 
-public class PlayerInputState: GameState {
+
+public class AIInputState: GameState {
     
     public private(set) var isCompleted = false
     
     public let player: Player
-    private(set) weak var gameViewController: GameViewController?
-    private(set) weak var gameboard: Gameboard?
-    private(set) weak var gameboardView: GameboardView?
-    
-    init(player: Player, gameViewController: GameViewController, gameboard: Gameboard, gameboardView: GameboardView) {
+    private(set) weak var context: GameViewController!
+
+
+    init(player: Player, context: GameViewController) {
         self.player = player
-        self.gameViewController = gameViewController
-        self.gameboard = gameboard
-        self.gameboardView = gameboardView
+        self.context = context
     }
     
     public func begin() {
         switch self.player {
         case .first:
-            self.gameViewController?.firstPlayerTurnLabel.isHidden = false
-            self.gameViewController?.secondPlayerTurnLabel.isHidden = true
-        case .second:
-            self.gameViewController?.firstPlayerTurnLabel.isHidden = true
-            self.gameViewController?.secondPlayerTurnLabel.isHidden = false
+            self.context.firstPlayerTurnLabel.isHidden = false
+            self.context.secondPlayerTurnLabel.isHidden = true
+        case .ai:
+            self.context.firstPlayerTurnLabel.isHidden = true
+            self.context.secondPlayerTurnLabel.isHidden = false
+            self.context.secondPlayerTurnLabel.text = "AI"
+            
+            aiMakeStep()
+        default:
+            print("Error")
         }
-        self.gameViewController?.winnerLabel.isHidden = true
+        
+        self.context.winnerLabel.isHidden = true
     }
     
     public func addMark(at position: GameboardPosition) {
-        guard let gameboardView = self.gameboardView
+        guard
+            let gameboardView = self.context.gameboardView,
+            gameboardView.canPlaceMarkView(at: position),
+            player == .first
+        else { return }
+        
+        let markView: MarkView = XView()
+
+        context.gameboard.setPlayer(self.player, at: position)
+        gameboardView.placeMarkView(markView, at: position)
+        self.isCompleted = true
+        makeNextStepWithChecking()
+    }
+    
+    private func aiMakeStep(){
+        
+        DispatchQueue.main.asyncAfter(deadline: .now()+1) { [weak self] in
+            guard
+                let self = self,
+                let context = self.context,
+                let position = AiBrain.shared.nextStep(gameboard: context.gameboard)
+            else {return}
+
+            context.gameboard.setPlayer(.ai, at: position)
+            let markView: MarkView = OView()
+            context.gameboardView.placeMarkView(markView, at: position)
+            self.isCompleted = true
+            self.makeNextStepWithChecking()
+        }
+    }
+    
+    private func makeNextStepWithChecking(){
+        let nextStepState = AIInputState(player: player.next(context.gameType), context: context)
+        let state = CheckGameIsOverState(context: context, nextState: nextStepState)
+        context.goToNextState(state)
+    }
+}
+
+public class PlayerInputState: GameState {
+    
+    public private(set) var isCompleted = false
+    
+    public let player: Player
+    private(set) weak var context: GameViewController!
+    
+    init(player: Player, context: GameViewController) {
+        self.player = player
+        self.context = context
+    }
+    
+    public func begin() {
+        switch self.player {
+        case .first:
+            self.context.firstPlayerTurnLabel.isHidden = false
+            self.context.secondPlayerTurnLabel.isHidden = true
+        case .second:
+            self.context.firstPlayerTurnLabel.isHidden = true
+            self.context.secondPlayerTurnLabel.isHidden = false
+        default:
+            print("Error")
+        }
+        self.context.winnerLabel.isHidden = true
+    }
+    
+    public func addMark(at position: GameboardPosition) {
+        guard let gameboardView = context.gameboardView
             , gameboardView.canPlaceMarkView(at: position)
             else { return }
         
@@ -58,11 +127,50 @@ public class PlayerInputState: GameState {
             markView = XView()
         case .second:
             markView = OView()
+        default:
+            print("Error")
+            return
         }
-        self.gameboard?.setPlayer(self.player, at: position)
-        self.gameboardView?.placeMarkView(markView, at: position)
+        context.gameboard.setPlayer(self.player, at: position)
+        context.gameboardView?.placeMarkView(markView, at: position)
         self.isCompleted = true
+        makeNextStepWithChecking()
     }
+    
+    private func makeNextStepWithChecking(){
+        let nextStepState = PlayerInputState(player: player.next(context.gameType), context: context)
+        let state = CheckGameIsOverState(context: context, nextState: nextStepState)
+        context.goToNextState(state)
+    }
+}
+
+public class CheckGameIsOverState: GameState {
+    public var isCompleted: Bool = false
+    private var nextState: GameState
+    private weak var context: GameViewController?
+    
+    
+    init(context: GameViewController, nextState: GameState){
+        self.nextState = nextState
+        self.context = context
+    }
+    
+    public func begin() {
+        guard let context = self.context else {
+            return
+        }
+        if let winner = context.referee.determineWinner() {
+            context.goToNextState(GameEndedState(winner: winner, context: context))
+            return
+        }
+        if context.gameboard.noMoreSteps(){
+            context.goToNextState(GameEndedState(winner: nil, context: context))
+            return
+        }
+        context.goToNextState(nextState)
+    }
+    
+    public func addMark(at position: GameboardPosition) {}
 }
 
 public class GameEndedState: GameState {
@@ -72,9 +180,9 @@ public class GameEndedState: GameState {
     public let winner: Player?
     private(set) weak var gameViewController: GameViewController?
     
-    public init(winner: Player?, gameViewController: GameViewController) {
+    public init(winner: Player?, context: GameViewController) {
         self.winner = winner
-        self.gameViewController = gameViewController
+        self.gameViewController = context
     }
     
     public func begin() {
@@ -94,6 +202,7 @@ public class GameEndedState: GameState {
         switch winner {
         case .first: return "1st player"
         case .second: return "2nd player"
+        case .ai: return "Matrix has got you"
         }
     }
 }
